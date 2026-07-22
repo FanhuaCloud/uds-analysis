@@ -65,12 +65,7 @@
             :show-tooltip="false"
           />
         </div>
-        <div class="toolbar-end">
-          <el-switch v-model="mergeSessions" active-text="自动合并多帧会话" /><el-checkbox
-            v-model="onlyExceptions"
-            >仅显示异常</el-checkbox
-          >
-        </div>
+        <div class="toolbar-end"><el-checkbox v-model="onlyExceptions">仅显示异常</el-checkbox></div>
       </section>
       <section class="stat-grid">
         <div v-for="item in stats" :key="item.label" class="stat-card">
@@ -295,7 +290,6 @@ const page = ref(1)
 const pageSize = ref(10)
 const activeTab = ref('result')
 const detailTab = ref('basic')
-const mergeSessions = ref(true)
 const onlyExceptions = ref(false)
 const expanded = ref<number[]>([])
 const fileMeta = reactive({ name: '', size: '', error: '' })
@@ -317,8 +311,7 @@ const filteredRecords = computed(() =>
       (filters.service === 'all' || record.service === filters.service) &&
       record.offsetMs >= filters.timeRange[0] &&
       record.offsetMs <= filters.timeRange[1] &&
-      (!onlyExceptions.value || record.status !== '成功') &&
-      (mergeSessions.value || record.frames.length === 1),
+      (!onlyExceptions.value || record.status !== '成功'),
   ),
 )
 const filteredFrames = computed(() =>
@@ -384,7 +377,6 @@ watch(
   [
     keyword,
     onlyExceptions,
-    mergeSessions,
     () => filters.ecu,
     () => filters.service,
     () => filters.timeRange,
