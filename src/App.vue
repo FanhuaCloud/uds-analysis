@@ -8,12 +8,7 @@
         </div>
         <strong>UDS ISO14229 协议分析工具</strong>
       </div>
-      <el-space :size="20"
-        ><el-button text :icon="Document" @click="unavailable('示例文件')">打开示例</el-button
-        ><el-button text :icon="Download" @click="unavailable('导出分析报告')"
-          >导出分析报告</el-button
-        ><el-button text :icon="Setting">设置</el-button></el-space
-      >
+      <el-space :size="20"><el-button text :icon="Setting">设置</el-button></el-space>
     </el-header>
     <main class="workspace">
       <section class="toolbar">
@@ -268,7 +263,6 @@ import {
   Close,
   DataAnalysis,
   Document,
-  Download,
   Menu,
   Search,
   Setting,
@@ -389,7 +383,6 @@ const onExpand = (_row: UdsRecord, rows: UdsRecord[]) =>
   (expanded.value = rows.map((record) => record.id))
 const rowClass = ({ row }: { row: UdsRecord }) =>
   row.id === selected.value?.id ? 'selected-row' : row.status !== '成功' ? 'error-row' : ''
-const unavailable = (name: string) => ElMessage.info(`${name}将在后续版本提供`)
 const importFile = async (event: Event) => {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
