@@ -13,6 +13,7 @@ export interface CanFrame {
   length: number
   data: number[]
   dataHex: string
+  note?: string
 }
 
 export interface UdsField {
@@ -143,6 +144,34 @@ const frameType = (firstByte: number | undefined): CanFrame['type'] => {
   }
 }
 
+const flowControlNote = (data: number[]) => {
+  const status = data[0] ?? 0
+  const flowStatus = status & 0x0f
+  const statusName =
+    ({ 0: 'Continue To Send', 1: 'Wait', 2: 'Overflow / Abort' } as Record<number, string>)[
+      flowStatus
+    ] ?? 'Reserved'
+  const blockSize = data[1] ?? 0
+  const stMin = data[2] ?? 0
+  const stMinText =
+    stMin <= 0x7f
+      ? `${stMin} ms`
+      : stMin >= 0xf1 && stMin <= 0xf9
+        ? `${(stMin - 0xf0) * 100} μs`
+        : `保留值 (${hex(stMin)})`
+  return `FC: ${statusName}，Block Size: ${blockSize}，STmin: ${stMinText}`
+}
+
+const flowControlTarget = (can: string) => {
+  const hexId = can.slice(2)
+  const canId = Number.parseInt(hexId, 16)
+  if (canId >= 0x7e8 && canId <= 0x7ef)
+    return `0x${(canId - 8).toString(16).toUpperCase().padStart(hexId.length, '0')}`
+  if (canId >= 0x7e0 && canId <= 0x7e7)
+    return `0x${(canId + 8).toString(16).toUpperCase().padStart(hexId.length, '0')}`
+  return undefined
+}
+
 const fieldsFor = (
   payload: number[],
   direction: Direction,
@@ -194,7 +223,9 @@ const fieldsFor = (
       : direction === '响应'
         ? '肯定响应'
         : '服务请求'
-  const description = serviceDescriptions[requestSid] ?? '该 SID 不在当前服务目录中，工具保留原始有效载荷供进一步分析。'
+  const description =
+    serviceDescriptions[requestSid] ??
+    '该 SID 不在当前服务目录中，工具保留原始有效载荷供进一步分析。'
   return { service, sid: hex(sid), sub, status: '成功', note, description, fields }
 }
 
@@ -261,6 +292,7 @@ export const parseTrc = (content: string): ParseResult => {
       .map((byte) => Number.parseInt(byte, 16))
       .filter((byte) => Number.isFinite(byte))
     const info = addressInfo(canNumber)
+    const type = frameType(data[0])
     frames.push({
       index,
       offsetMs,
@@ -269,10 +301,11 @@ export const parseTrc = (content: string): ParseResult => {
       direction: info.direction,
       can: `0x${match[3]!.toUpperCase()}`,
       ecu: info.ecu,
-      type: frameType(data[0]),
+      type,
       length,
       data,
       dataHex: bytesHex(data),
+      note: type === 'Flow Control' ? flowControlNote(data) : undefined,
     })
   }
   if (!frames.length) throw new Error('未找到 PCAN-View TRC 2.0 数据帧，请确认文件格式。')
@@ -321,6 +354,12 @@ export const parseTrc = (content: string): ParseResult => {
         emit(item)
         pending.delete(key)
       }
+      continue
+    }
+    if (type === 3) {
+      const target = flowControlTarget(key)
+      const item = target ? pending.get(target) : undefined
+      if (item) item.frames.push(frame)
     }
   }
   for (const item of pending.values())

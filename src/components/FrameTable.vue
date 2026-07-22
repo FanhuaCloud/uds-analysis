@@ -12,6 +12,7 @@
     <el-table-column prop="type" label="ISO-TP 类型" width="132" />
     <el-table-column prop="length" label="DLC" width="52" />
     <el-table-column prop="dataHex" label="数据 (Hex)" min-width="185" />
+    <el-table-column prop="note" label="说明" min-width="220" show-overflow-tooltip />
     <el-table-column prop="rawDirection" label="TRC 方向" width="75" />
   </el-table>
 </template>
