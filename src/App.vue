@@ -8,32 +8,31 @@
         </div>
         <strong>UDS ISO14229 协议分析工具</strong>
       </div>
-      <el-space :size="22" class="header-actions">
-        <el-button text :icon="Document">打开示例</el-button>
-        <el-button text :icon="Download">导出分析报告</el-button>
-        <el-button text :icon="Setting">设置</el-button>
-        <el-dropdown>
-          <el-button text
-            ><el-avatar :size="24">工</el-avatar><span>工程师</span><el-icon><ArrowDown /></el-icon
-          ></el-button>
-          <template #dropdown
-            ><el-dropdown-menu
-              ><el-dropdown-item>个人设置</el-dropdown-item
-              ><el-dropdown-item>退出</el-dropdown-item></el-dropdown-menu
-            ></template
-          >
-        </el-dropdown>
-      </el-space>
+      <el-space :size="20"
+        ><el-button text :icon="Document" @click="unavailable('示例文件')">打开示例</el-button
+        ><el-button text :icon="Download" @click="unavailable('导出分析报告')"
+          >导出分析报告</el-button
+        ><el-button text :icon="Setting">设置</el-button></el-space
+      >
     </el-header>
-
     <main class="workspace">
       <section class="toolbar">
-        <el-button type="primary" :icon="Upload" @click="notify('请选择 TRC 文件')"
+        <el-button type="primary" :icon="Upload" @click="fileInput?.click()"
           >导入 TRC 文件</el-button
         >
-        <el-button class="file-button" :icon="Document"
-          ><span>Demo_20250520.trc</span><small>2.48 MB</small
-          ><el-tag type="success" size="small" effect="plain">已解析</el-tag></el-button
+        <input
+          ref="fileInput"
+          class="hidden-input"
+          type="file"
+          accept=".trc,text/plain"
+          @change="importFile"
+        />
+        <el-button v-if="fileMeta.name" class="file-button" :icon="Document"
+          ><span>{{ fileMeta.name }}</span
+          ><small>{{ fileMeta.size }}</small
+          ><el-tag :type="fileMeta.error ? 'danger' : 'success'" size="small" effect="plain">{{
+            fileMeta.error || '已解析'
+          }}</el-tag></el-button
         >
         <el-input
           v-model="keyword"
@@ -42,24 +41,30 @@
           clearable
           class="search-input"
         />
-        <el-select v-model="filters.protocol" class="filter"
-          ><el-option label="ISO 14229 (UDS)" value="uds"
+        <el-select v-model="filters.ecu" class="filter" placeholder="ECU"
+          ><el-option label="全部 ECU" value="all" /><el-option
+            v-for="ecu in ecus"
+            :key="ecu"
+            :label="ecu"
+            :value="ecu"
         /></el-select>
-        <el-select v-model="filters.ecu" class="filter"
-          ><el-option label="全部" value="all" /><el-option label="ECU-01" value="ecu01"
-        /></el-select>
-        <el-select v-model="filters.service" class="filter wide"
+        <el-select v-model="filters.service" class="filter wide" placeholder="服务"
           ><el-option label="全部服务" value="all" /><el-option
-            label="Security Access"
-            value="security"
+            v-for="service in services"
+            :key="service"
+            :label="service"
+            :value="service"
         /></el-select>
-        <el-date-picker
-          v-model="filters.range"
-          type="daterange"
-          start-placeholder="开始时间"
-          end-placeholder="结束时间"
-          class="date-filter"
-        />
+        <div v-if="records.length" class="range-filter">
+          <span>时间范围</span
+          ><el-slider
+            v-model="filters.timeRange"
+            range
+            :min="0"
+            :max="maxOffset"
+            :show-tooltip="false"
+          />
+        </div>
         <div class="toolbar-end">
           <el-switch v-model="mergeSessions" active-text="自动合并多帧会话" /><el-checkbox
             v-model="onlyExceptions"
@@ -67,7 +72,6 @@
           >
         </div>
       </section>
-
       <section class="stat-grid">
         <div v-for="item in stats" :key="item.label" class="stat-card">
           <div class="stat-icon" :class="item.color">
@@ -81,158 +85,176 @@
           </div>
         </div>
       </section>
-
       <section class="content-grid">
         <article class="records-panel">
           <el-tabs v-model="activeTab" class="record-tabs">
-            <el-tab-pane label="解析结果" name="result" />
-            <el-tab-pane label="原始报文" name="raw" />
-            <el-tab-pane label="服务视图" name="service" />
-            <el-tab-pane label="时序视图" name="timeline" />
+            <el-tab-pane label="解析结果" name="result" /><el-tab-pane
+              label="原始报文"
+              name="raw"
+            /><el-tab-pane label="服务视图" name="service" /><el-tab-pane
+              label="时序视图"
+              name="timeline"
+            />
           </el-tabs>
-          <el-table
-            :data="filteredRecords"
-            row-key="id"
-            border
-            size="small"
-            height="calc(100vh - 364px)"
-            :expand-row-keys="expanded"
-            @row-click="selectRecord"
-            @expand-change="onExpand"
-            :row-class-name="rowClass"
+          <template v-if="activeTab === 'result'"
+            ><el-table
+              v-if="records.length"
+              :data="pagedRecords"
+              row-key="id"
+              border
+              size="small"
+              height="calc(100vh - 364px)"
+              :expand-row-keys="expanded"
+              @row-click="selectRecord"
+              @expand-change="onExpand"
+              :row-class-name="rowClass"
+            >
+              <el-table-column type="expand" width="38"
+                ><template #default="scope"
+                  ><div class="frame-area">
+                    <b>原始帧（{{ scope.row.frames.length }} 帧）</b
+                    ><frame-table :frames="scope.row.frames" /></div></template
+              ></el-table-column>
+              <el-table-column prop="index" label="#" width="50" /><el-table-column
+                prop="time"
+                label="时间戳"
+                width="125"
+              /><el-table-column label="方向" width="62"
+                ><template #default="{ row }"
+                  ><el-tag :type="row.direction === '请求' ? 'primary' : 'success'" size="small">{{
+                    row.direction
+                  }}</el-tag></template
+                ></el-table-column
+              ><el-table-column prop="can" label="CAN ID" width="75" /><el-table-column
+                prop="ecu"
+                label="ECU"
+                width="75"
+              /><el-table-column
+                prop="service"
+                label="服务"
+                min-width="155"
+                show-overflow-tooltip
+              /><el-table-column prop="sid" label="SID" width="58" /><el-table-column
+                prop="sub"
+                label="子功能"
+                width="70"
+              /><el-table-column prop="length" label="长度" width="50" /><el-table-column
+                label="状态"
+                width="78"
+                ><template #default="{ row }"
+                  ><el-tag :type="statusType(row.status)" size="small">{{
+                    row.status
+                  }}</el-tag></template
+                ></el-table-column
+              ><el-table-column label="合并记录数" width="90"
+                ><template #default="{ row }"
+                  ><el-tag v-if="row.frames.length > 1" size="small" effect="plain"
+                    >{{ row.frames.length }} 帧</el-tag
+                  ><span v-else>1</span></template
+                ></el-table-column
+              ><el-table-column
+                prop="note"
+                label="说明"
+                min-width="150"
+                show-overflow-tooltip
+              /> </el-table
+            ><el-empty
+              v-else
+              description="请选择 PCAN-View TRC 2.0 文件开始分析"
+              class="content-empty"
+          /></template>
+          <raw-table v-else-if="activeTab === 'raw'" :frames="pagedFrames" /><service-view
+            v-else-if="activeTab === 'service'"
+            :records="filteredRecords"
+            @select="selectRecord"
+          /><timeline-view v-else :records="filteredRecords" @select="selectRecord" />
+          <footer
+            v-if="
+              activeTab !== 'service' &&
+              activeTab !== 'timeline' &&
+              (records.length || frames.length)
+            "
+            class="table-footer"
           >
-            <el-table-column type="expand" width="38">
-              <template #default="scope">
-                <div class="frame-area">
-                  <b>原始帧（{{ scope.row.frames.length }} 帧）</b
-                  ><el-table :data="scope.row.frames" size="small" border
-                    ><el-table-column prop="time" label="时间戳" width="145" /><el-table-column
-                      prop="direction"
-                      label="方向"
-                      width="82" /><el-table-column
-                      prop="can"
-                      label="CAN ID"
-                      width="88" /><el-table-column
-                      prop="type"
-                      label="类型"
-                      width="140" /><el-table-column
-                      prop="length"
-                      label="长度"
-                      width="70" /><el-table-column
-                      prop="data"
-                      label="数据 (Hex)" /><el-table-column prop="note" label="说明"
-                  /></el-table>
-                </div>
-              </template>
-            </el-table-column>
-            <el-table-column prop="index" label="#" width="42" />
-            <el-table-column prop="time" label="时间戳" width="126" sortable />
-            <el-table-column label="方向" width="62"
-              ><template #default="{ row }"
-                ><el-tag :type="row.direction === '请求' ? 'primary' : 'success'" size="small">{{
-                  row.direction
-                }}</el-tag></template
-              ></el-table-column
-            >
-            <el-table-column prop="can" label="CAN ID" width="72" />
-            <el-table-column prop="ecu" label="ECU" width="74" />
-            <el-table-column prop="service" label="服务" min-width="158" show-overflow-tooltip />
-            <el-table-column prop="sid" label="SID" width="54" />
-            <el-table-column prop="sub" label="子功能" width="65" />
-            <el-table-column prop="length" label="长度" width="48" />
-            <el-table-column label="状态" width="72"
-              ><template #default="{ row }"
-                ><el-tag :type="row.status === '否定响应' ? 'danger' : 'success'" size="small">{{
-                  row.status
-                }}</el-tag></template
-              ></el-table-column
-            >
-            <el-table-column label="合并记录数" width="91"
-              ><template #default="{ row }"
-                ><el-tag v-if="row.frames.length > 1" size="small" effect="plain"
-                  >{{ row.frames.length }} (多帧)</el-tag
-                ><span v-else>1</span></template
-              ></el-table-column
-            >
-            <el-table-column prop="note" label="说明" min-width="135" show-overflow-tooltip />
-          </el-table>
-          <footer class="table-footer">
-            <span>共 {{ filteredRecords.length }} 条记录</span
+            <span
+              >共
+              {{ activeTab === 'raw' ? filteredFrames.length : filteredRecords.length }}
+              条记录</span
             ><el-pagination
               v-model:current-page="page"
+              v-model:page-size="pageSize"
               small
               background
               layout="prev, pager, next, sizes, jumper"
-              :total="1248"
-              :page-size="10"
+              :total="activeTab === 'raw' ? filteredFrames.length : filteredRecords.length"
+              :page-sizes="[10, 25, 50, 100]"
             />
           </footer>
         </article>
-
         <aside class="detail-panel">
           <div class="detail-title">
-            <strong>记录详情</strong><el-button :icon="Close" text circle />
+            <strong>记录详情</strong
+            ><el-button :icon="Close" text circle @click="selected = undefined" />
           </div>
-          <div class="detail-head">
-            <b>#{{ selected.index }}</b
-            ><span>{{ selected.service }} ({{ selected.sid }})</span
-            ><el-tag type="success" size="small">成功</el-tag
-            ><el-tag size="small" effect="plain">已合并 {{ selected.frames.length }} 帧</el-tag>
-          </div>
-          <el-tabs v-model="detailTab" stretch class="detail-tabs"
-            ><el-tab-pane label="基本信息" name="basic" /><el-tab-pane
-              label="原始帧序列"
-              name="frames" /><el-tab-pane label="UDS 解析结果" name="uds" /><el-tab-pane
-              label="十六进制数据"
-              name="hex"
-          /></el-tabs>
-          <template v-if="detailTab === 'basic'">
-            <h4>基本信息</h4>
-            <el-descriptions :column="2" size="small"
-              ><el-descriptions-item label="时间戳">{{ selected.time }}.789</el-descriptions-item
-              ><el-descriptions-item label="长度">{{ selected.length }} bytes</el-descriptions-item
-              ><el-descriptions-item label="方向">请求 (TX)</el-descriptions-item
-              ><el-descriptions-item label="SID">{{ selected.sid }}</el-descriptions-item
-              ><el-descriptions-item label="CAN ID">{{ selected.can }}</el-descriptions-item
-              ><el-descriptions-item label="子功能">{{ selected.sub }}</el-descriptions-item
-              ><el-descriptions-item label="ECU">{{ selected.ecu }}</el-descriptions-item
-              ><el-descriptions-item label="状态"
-                ><el-tag type="success" size="small">成功</el-tag></el-descriptions-item
-              ></el-descriptions
+          <template v-if="selected"
+            ><div class="detail-head">
+              <b>#{{ selected.index }}</b
+              ><span>{{ selected.service }} ({{ selected.sid }})</span
+              ><el-tag :type="statusType(selected.status)" size="small">{{
+                selected.status
+              }}</el-tag>
+            </div>
+            <el-tabs v-model="detailTab" stretch class="detail-tabs"
+              ><el-tab-pane label="基本信息" name="basic" /><el-tab-pane
+                label="原始帧序列"
+                name="frames" /><el-tab-pane label="UDS 解析结果" name="uds" /><el-tab-pane
+                label="十六进制数据"
+                name="hex"
+            /></el-tabs>
+            <template v-if="detailTab === 'basic'"
+              ><h4>基本信息</h4>
+              <el-descriptions :column="2" size="small"
+                ><el-descriptions-item label="时间戳">{{ selected.time }}</el-descriptions-item
+                ><el-descriptions-item label="长度"
+                  >{{ selected.length }} bytes</el-descriptions-item
+                ><el-descriptions-item label="方向">{{ selected.direction }}</el-descriptions-item
+                ><el-descriptions-item label="SID">{{ selected.sid }}</el-descriptions-item
+                ><el-descriptions-item label="CAN ID">{{ selected.can }}</el-descriptions-item
+                ><el-descriptions-item label="ECU">{{ selected.ecu }}</el-descriptions-item
+                ><el-descriptions-item label="状态"
+                  ><el-tag :type="statusType(selected.status)" size="small">{{
+                    selected.status
+                  }}</el-tag></el-descriptions-item
+                ></el-descriptions
+              ><el-divider />
+              <h4>服务说明</h4>
+              <p class="service-text">{{ selected.error || selected.note }}</p></template
             >
-            <el-divider />
-            <h4>原始帧序列（{{ selected.frames.length }} 帧）</h4>
-            <el-table :data="selected.frames" size="small" border max-height="150"
-              ><el-table-column type="index" label="序号" width="48" /><el-table-column
-                prop="time"
-                label="时间戳"
-                width="116" /><el-table-column
-                prop="can"
-                label="CAN ID"
-                width="67" /><el-table-column
-                prop="type"
-                label="类型"
-                width="105" /><el-table-column prop="data" label="数据 (Hex)"
-            /></el-table>
-            <el-divider />
-            <h4>UDS 解析结果</h4>
-            <el-descriptions :column="1" size="small"
-              ><el-descriptions-item label="服务名称">{{ selected.service }}</el-descriptions-item
-              ><el-descriptions-item label="服务描述"
-                >诊断会话控制，用于请求 ECU 切换到指定的诊断会话。</el-descriptions-item
-              ><el-descriptions-item label="请求 / 响应">请求</el-descriptions-item
-              ><el-descriptions-item label="响应 SID">0x50</el-descriptions-item></el-descriptions
+            <template v-else-if="detailTab === 'frames'"
+              ><h4>原始帧序列（{{ selected.frames.length }} 帧）</h4>
+              <frame-table :frames="selected.frames"
+            /></template>
+            <template v-else-if="detailTab === 'uds'"
+              ><h4>UDS 解析结果</h4>
+              <el-descriptions :column="1" size="small"
+                ><el-descriptions-item label="服务名称">{{ selected.service }}</el-descriptions-item
+                ><el-descriptions-item
+                  v-for="field in selected.fields"
+                  :key="field.label"
+                  :label="field.label"
+                  >{{ field.value }}</el-descriptions-item
+                ></el-descriptions
+              ></template
             >
-            <h4>十六进制数据</h4>
-            <div class="hex-box">10 02 15 00 00 00 00 00 00 00</div>
-            <h4>服务说明</h4>
-            <p class="service-text">
-              该服务用于控制 ECU 的诊断会话。会话类型决定了后续可用的诊断服务和权限级别。
-            </p>
-          </template>
-          <div v-else class="empty-detail">
-            <el-empty description="切换到基本信息查看解析详情" />
-          </div>
+            <template v-else
+              ><h4>UDS 有效载荷</h4>
+              <div class="hex-box">{{ selected.payloadHex || '无有效载荷' }}</div>
+              <h4>原始 CAN 数据</h4>
+              <div class="hex-box" v-for="frame in selected.frames" :key="frame.index">
+                {{ frame.dataHex }}
+              </div></template
+            > </template
+          ><el-empty v-else description="选择一条解析记录查看详情" class="detail-empty" />
         </aside>
       </section>
     </main>
@@ -240,10 +262,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, defineComponent, h, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
-  ArrowDown,
   Close,
   DataAnalysis,
   Document,
@@ -257,301 +278,220 @@ import {
   Tickets,
   Monitor,
 } from '@element-plus/icons-vue'
+import { parseTrc, type CanFrame, type ParseStatus, type UdsRecord } from './lib/udsParser'
 
-type Frame = {
-  time: string
-  direction: string
-  can: string
-  type: string
-  length: number
-  data: string
-  note: string
-}
-type Record = {
-  id: number
-  index: number
-  time: string
-  direction: string
-  can: string
-  ecu: string
-  service: string
-  sid: string
-  sub: string
-  length: number
-  status: string
-  note: string
-  frames: Frame[]
-}
-const makeFrames = (sid: string, sub: string): Frame[] => [
-  {
-    time: '09:15:23.456.789',
-    direction: '请求',
-    can: '0x7E0',
-    type: 'First Frame',
-    length: 8,
-    data: `${sid.replace('0x', '')} ${sub.replace('0x', '')} 15 00 00 00 00 00`,
-    note: 'FF - 首帧，后续 2 帧',
-  },
-  {
-    time: '09:15:23.456.845',
-    direction: '请求',
-    can: '0x7E0',
-    type: 'Consecutive Frame',
-    length: 8,
-    data: '21 00 00 00 00 00 00 00',
-    note: 'CF - 连续帧 (1/2)',
-  },
-  {
-    time: '09:15:23.456.901',
-    direction: '请求',
-    can: '0x7E0',
-    type: 'Consecutive Frame',
-    length: 5,
-    data: '22',
-    note: 'CF - 连续帧 (2/2)',
-  },
-]
-const records = ref<Record[]>([
-  {
-    id: 1,
-    index: 1,
-    time: '09:15:23.456',
-    direction: '请求',
-    can: '0x7E0',
-    ecu: 'ECU-01',
-    service: 'Diagnostic Session Control',
-    sid: '0x10',
-    sub: '0x02',
-    length: 2,
-    status: '成功',
-    note: 'Extended Diagnostic Session',
-    frames: makeFrames('0x10', '0x02'),
-  },
-  {
-    id: 2,
-    index: 2,
-    time: '09:15:23.460',
-    direction: '响应',
-    can: '0x7E8',
-    ecu: 'ECU-01',
-    service: 'Diagnostic Session Control',
-    sid: '0x50',
-    sub: '0x02',
-    length: 2,
-    status: '成功',
-    note: '会话已切换',
-    frames: makeFrames('0x50', '0x02'),
-  },
-  {
-    id: 3,
-    index: 3,
-    time: '09:15:23.480',
-    direction: '请求',
-    can: '0x7E0',
-    ecu: 'ECU-01',
-    service: 'Security Access',
-    sid: '0x27',
-    sub: '0x01',
-    length: 2,
-    status: '成功',
-    note: '请求种子 (Level 1)',
-    frames: [
-      {
-        time: '09:15:23.480.456',
-        direction: '请求',
-        can: '0x7E0',
-        type: 'Single Frame',
-        length: 8,
-        data: '27 01',
-        note: '请求种子',
-      },
-    ],
-  },
-  {
-    id: 4,
-    index: 4,
-    time: '09:15:24.100',
-    direction: '响应',
-    can: '0x7E8',
-    ecu: 'ECU-01',
-    service: 'Security Access',
-    sid: '0x67',
-    sub: '0x01',
-    length: 6,
-    status: '成功',
-    note: '返回种子',
-    frames: makeFrames('0x67', '0x01'),
-  },
-  {
-    id: 5,
-    index: 5,
-    time: '09:15:24.780',
-    direction: '请求',
-    can: '0x7E0',
-    ecu: 'ECU-01',
-    service: 'Security Access',
-    sid: '0x27',
-    sub: '0x02',
-    length: 18,
-    status: '成功',
-    note: '发送密钥 (Level 1)',
-    frames: makeFrames('0x27', '0x02'),
-  },
-  {
-    id: 6,
-    index: 6,
-    time: '09:15:24.790',
-    direction: '响应',
-    can: '0x7E8',
-    ecu: 'ECU-01',
-    service: 'Security Access',
-    sid: '0x67',
-    sub: '0x02',
-    length: 2,
-    status: '成功',
-    note: '安全访问通过',
-    frames: [
-      {
-        time: '09:15:24.790.112',
-        direction: '响应',
-        can: '0x7E8',
-        type: 'Single Frame',
-        length: 8,
-        data: '67 02',
-        note: '访问通过',
-      },
-    ],
-  },
-  {
-    id: 7,
-    index: 7,
-    time: '09:15:25.512',
-    direction: '请求',
-    can: '0x7E0',
-    ecu: 'ECU-01',
-    service: 'Read Data By Identifier',
-    sid: '0x22',
-    sub: '0xF186',
-    length: 4,
-    status: '成功',
-    note: 'VIN（车辆识别码）',
-    frames: makeFrames('0x22', '0xF186'),
-  },
-  {
-    id: 8,
-    index: 8,
-    time: '09:15:25.520',
-    direction: '响应',
-    can: '0x7E8',
-    ecu: 'ECU-01',
-    service: 'Negative Response',
-    sid: '0x7F',
-    sub: '0x22',
-    length: 3,
-    status: '否定响应',
-    note: '条件不满足',
-    frames: [
-      {
-        time: '09:15:25.520.456',
-        direction: '响应',
-        can: '0x7E8',
-        type: 'Single Frame',
-        length: 8,
-        data: '7F 22 22',
-        note: 'NRC: 0x22（条件不满足）',
-      },
-    ],
-  },
-  {
-    id: 9,
-    index: 9,
-    time: '09:15:26.000',
-    direction: '请求',
-    can: '0x7E0',
-    ecu: 'ECU-01',
-    service: 'Tester Present',
-    sid: '0x3E',
-    sub: '0x80',
-    length: 2,
-    status: '成功',
-    note: '保持会话',
-    frames: [
-      {
-        time: '09:15:26.000.321',
-        direction: '请求',
-        can: '0x7E0',
-        type: 'Single Frame',
-        length: 8,
-        data: '3E 80',
-        note: '保持会话',
-      },
-    ],
-  },
-])
-const stats = [
+const fileInput = ref<HTMLInputElement>()
+const frames = ref<CanFrame[]>([])
+const records = ref<UdsRecord[]>([])
+const selected = ref<UdsRecord>()
+const keyword = ref('')
+const page = ref(1)
+const pageSize = ref(10)
+const activeTab = ref('result')
+const detailTab = ref('basic')
+const mergeSessions = ref(true)
+const onlyExceptions = ref(false)
+const expanded = ref<number[]>([])
+const fileMeta = reactive({ name: '', size: '', error: '' })
+const filters = reactive({ ecu: 'all', service: 'all', timeRange: [0, 0] as [number, number] })
+const formatSize = (size: number) =>
+  size < 1024 * 1024 ? `${(size / 1024).toFixed(1)} KB` : `${(size / 1024 / 1024).toFixed(2)} MB`
+const maxOffset = computed(() => frames.value.at(-1)?.offsetMs ?? 0)
+const ecus = computed(() => [...new Set(records.value.map((record) => record.ecu))].sort())
+const services = computed(() => [...new Set(records.value.map((record) => record.service))].sort())
+const matches = (value: string) =>
+  !keyword.value || value.toLowerCase().includes(keyword.value.toLowerCase())
+const filteredRecords = computed(() =>
+  records.value.filter(
+    (record) =>
+      matches(
+        `${record.service} ${record.sid} ${record.sub} ${record.note} ${record.payloadHex}`,
+      ) &&
+      (filters.ecu === 'all' || record.ecu === filters.ecu) &&
+      (filters.service === 'all' || record.service === filters.service) &&
+      record.offsetMs >= filters.timeRange[0] &&
+      record.offsetMs <= filters.timeRange[1] &&
+      (!onlyExceptions.value || record.status !== '成功') &&
+      (mergeSessions.value || record.frames.length === 1),
+  ),
+)
+const filteredFrames = computed(() =>
+  frames.value.filter(
+    (frame) =>
+      matches(`${frame.can} ${frame.dataHex}`) &&
+      (filters.ecu === 'all' || frame.ecu === filters.ecu) &&
+      frame.offsetMs >= filters.timeRange[0] &&
+      frame.offsetMs <= filters.timeRange[1],
+  ),
+)
+const pagedRecords = computed(() =>
+  filteredRecords.value.slice((page.value - 1) * pageSize.value, page.value * pageSize.value),
+)
+const pagedFrames = computed(() =>
+  filteredFrames.value.slice((page.value - 1) * pageSize.value, page.value * pageSize.value),
+)
+const stats = computed(() => [
   {
     label: '总报文数',
-    value: '8,732',
+    value: frames.value.length.toLocaleString(),
     unit: '帧',
-    note: '原始帧总数',
+    note: '原始 CAN 帧总数',
     icon: Tickets,
     color: 'blue',
   },
   {
-    label: '服务请求数',
-    value: '1,248',
+    label: '服务记录数',
+    value: records.value.length.toLocaleString(),
     unit: '条',
-    note: '合并后请求记录',
+    note: 'ISO-TP 重组后记录',
     icon: Monitor,
     color: 'green',
   },
   {
     label: '诊断会话',
-    value: '16',
+    value: records.value
+      .filter((record) => record.sid === '0x10' || record.sid === '0x50')
+      .length.toLocaleString(),
     unit: '个',
-    note: '会话切换记录',
+    note: '会话控制记录',
     icon: Connection,
     color: 'purple',
   },
   {
     label: '异常响应',
-    value: '24',
+    value: records.value.filter((record) => record.status !== '成功').length.toLocaleString(),
     unit: '条',
-    note: '否定响应 / 错误',
+    note: '否定响应 / 解析异常',
     icon: WarningFilled,
     color: 'red',
   },
   {
-    label: '已合并记录',
-    value: '376',
+    label: '多帧记录',
+    value: records.value.filter((record) => record.frames.length > 1).length.toLocaleString(),
     unit: '条',
-    note: '多帧合并记录数',
+    note: 'ISO-TP 多帧重组',
     icon: DataAnalysis,
     color: 'teal',
   },
-]
-const keyword = ref(''),
-  page = ref(1),
-  activeTab = ref('result'),
-  detailTab = ref('basic'),
-  mergeSessions = ref(true),
-  onlyExceptions = ref(false),
-  expanded = ref<number[]>([1, 5]),
-  selected = ref<Record>(records.value[0]!)
-const filters = reactive({ protocol: 'uds', ecu: 'all', service: 'all', range: [] })
-const filteredRecords = computed(() =>
-  records.value.filter(
-    (r) =>
-      (!keyword.value ||
-        `${r.service} ${r.sid} ${r.note}`.toLowerCase().includes(keyword.value.toLowerCase())) &&
-      (!onlyExceptions.value || r.status === '否定响应'),
-  ),
+])
+watch(
+  [
+    keyword,
+    onlyExceptions,
+    mergeSessions,
+    () => filters.ecu,
+    () => filters.service,
+    () => filters.timeRange,
+  ],
+  () => (page.value = 1),
+  { deep: true },
 )
-const selectRecord = (row: Record) => (selected.value = row)
-const onExpand = (row: Record, rows: Record[]) => (expanded.value = rows.map((item) => item.id))
-const rowClass = ({ row }: { row: Record }) =>
-  row.id === selected.value.id ? 'selected-row' : row.status === '否定响应' ? 'error-row' : ''
-const notify = (message: string) => ElMessage.info(message)
+const statusType = (status: ParseStatus) =>
+  status === '成功' ? 'success' : status === '否定响应' ? 'danger' : 'warning'
+const selectRecord = (record: UdsRecord) => {
+  selected.value = record
+  detailTab.value = 'basic'
+}
+const onExpand = (_row: UdsRecord, rows: UdsRecord[]) =>
+  (expanded.value = rows.map((record) => record.id))
+const rowClass = ({ row }: { row: UdsRecord }) =>
+  row.id === selected.value?.id ? 'selected-row' : row.status !== '成功' ? 'error-row' : ''
+const unavailable = (name: string) => ElMessage.info(`${name}将在后续版本提供`)
+const importFile = async (event: Event) => {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  fileMeta.name = file.name
+  fileMeta.size = formatSize(file.size)
+  fileMeta.error = ''
+  try {
+    const result = parseTrc(await file.text())
+    frames.value = result.frames
+    records.value = result.records
+    filters.timeRange = [0, maxOffset.value]
+    selected.value = records.value[0]
+    page.value = 1
+    ElMessage.success(`已解析 ${result.frames.length.toLocaleString()} 帧 CAN 报文`)
+  } catch (error) {
+    frames.value = []
+    records.value = []
+    selected.value = undefined
+    fileMeta.error = error instanceof Error ? error.message : '文件解析失败'
+    ElMessage.error(fileMeta.error)
+  } finally {
+    ;(event.target as HTMLInputElement).value = ''
+  }
+}
+const FrameTable = defineComponent({
+  props: { frames: { type: Array as () => CanFrame[], required: true } },
+  setup(props) {
+    return () =>
+      h('el-table', { data: props.frames, size: 'small', border: true, maxHeight: 180 }, () => [
+        h('el-table-column', { prop: 'index', label: '#', width: 52 }),
+        h('el-table-column', { prop: 'time', label: '时间戳', width: 125 }),
+        h('el-table-column', { prop: 'direction', label: '方向', width: 60 }),
+        h('el-table-column', { prop: 'can', label: 'CAN ID', width: 75 }),
+        h('el-table-column', { prop: 'type', label: '类型', width: 130 }),
+        h('el-table-column', { prop: 'dataHex', label: '数据 (Hex)' }),
+      ])
+  },
+})
+const RawTable = defineComponent({
+  props: { frames: { type: Array as () => CanFrame[], required: true } },
+  setup(props) {
+    return () => h(FrameTable, { frames: props.frames })
+  },
+})
+const ServiceView = defineComponent({
+  props: { records: { type: Array as () => UdsRecord[], required: true } },
+  emits: ['select'],
+  setup(props, { emit }) {
+    return () =>
+      h(
+        'div',
+        { class: 'service-view' },
+        Object.entries(
+          props.records.reduce<Record<string, number>>((total, record) => {
+            total[record.service] = (total[record.service] ?? 0) + 1
+            return total
+          }, {}),
+        )
+          .sort((a, b) => b[1] - a[1])
+          .map(([service, count]) =>
+            h(
+              'el-button',
+              {
+                onClick: () => {
+                  const record = props.records.find((item) => item.service === service)
+                  if (record) emit('select', record)
+                },
+              },
+              () => `${service}  ${count} 条`,
+            ),
+          ),
+      )
+  },
+})
+const TimelineView = defineComponent({
+  props: { records: { type: Array as () => UdsRecord[], required: true } },
+  emits: ['select'],
+  setup(props, { emit }) {
+    return () =>
+      h(
+        'div',
+        { class: 'timeline-view' },
+        props.records.slice(0, 100).map((record) =>
+          h(
+            'button',
+            {
+              class: ['timeline-item', record.status !== '成功' ? 'timeline-error' : ''],
+              onClick: () => emit('select', record),
+            },
+            `${record.time}  ${record.direction}  ${record.sid}  ${record.service}`,
+          ),
+        ),
+      )
+  },
+})
 </script>
 
 <style>
@@ -579,7 +519,6 @@ body {
   border-bottom: 1px solid #e8edf5;
 }
 .brand,
-.header-actions,
 .toolbar,
 .toolbar-end,
 .detail-head {
@@ -604,44 +543,49 @@ body {
   background: #2878e5;
   clip-path: polygon(50% 0, 94% 15%, 88% 70%, 50% 100%, 12% 70%, 6% 15%);
 }
-.header-actions .el-button {
-  color: #344054;
-}
 .workspace {
   padding: 16px 12px 8px;
 }
 .toolbar {
-  gap: 16px;
+  gap: 12px;
   height: 56px;
   padding: 0 6px;
   background: #fff;
   border-bottom: 1px solid #e7ebf1;
 }
-.toolbar .el-button {
-  height: 36px;
+.hidden-input {
+  display: none;
 }
 .file-button {
   color: #344054;
+  max-width: 260px;
 }
 .file-button small {
   color: #98a2b3;
   margin-left: 8px;
 }
 .search-input {
-  width: 230px;
+  width: 215px;
 }
 .filter {
-  width: 158px;
+  width: 142px;
 }
 .filter.wide {
-  width: 140px;
+  width: 150px;
 }
-.date-filter {
-  width: 165px;
+.range-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 160px;
+  color: #667085;
+}
+.range-filter .el-slider {
+  flex: 1;
 }
 .toolbar-end {
   margin-left: auto;
-  gap: 22px;
+  gap: 15px;
   white-space: nowrap;
 }
 .stat-grid {
@@ -731,10 +675,6 @@ body {
   --el-table-header-bg-color: #fafbfc;
   --el-table-row-hover-bg-color: #f4f8ff;
 }
-.records-panel .el-table th.el-table__cell {
-  color: #475467;
-  font-weight: 500;
-}
 .records-panel .el-table .cell {
   white-space: nowrap;
   padding: 0 5px;
@@ -747,7 +687,6 @@ body {
 }
 .frame-area {
   padding: 6px 22px 4px 35px;
-  background: #fff;
 }
 .frame-area > b {
   display: block;
@@ -763,6 +702,9 @@ body {
   color: #667085;
   border-top: 1px solid #edf0f5;
 }
+.content-empty {
+  height: calc(100vh - 364px);
+}
 .detail-panel {
   min-height: calc(100vh - 182px);
   padding: 0 12px;
@@ -774,12 +716,9 @@ body {
   justify-content: space-between;
   border-bottom: 1px solid #e5e9f0;
 }
-.detail-title strong {
-  font-size: 14px;
-}
 .detail-head {
   gap: 8px;
-  height: 47px;
+  min-height: 47px;
 }
 .detail-head span {
   font-weight: 600;
@@ -798,10 +737,7 @@ h4 {
 }
 .detail-panel .el-descriptions__label {
   color: #667085;
-  width: 64px;
-}
-.detail-panel .el-descriptions__content {
-  color: #344054;
+  width: 72px;
 }
 .detail-panel .el-descriptions__cell {
   padding-bottom: 6px;
@@ -809,18 +745,15 @@ h4 {
 .detail-panel .el-divider {
   margin: 10px 0;
 }
-.detail-panel .el-table .cell {
-  font-size: 11px;
-  white-space: nowrap;
-  padding: 0 4px;
-}
 .hex-box {
   padding: 9px;
+  margin-bottom: 7px;
   border-radius: 4px;
   background: #f5f7fa;
   color: #667085;
   font-family: Consolas, monospace;
   font-size: 11px;
+  word-break: break-all;
 }
 .service-text {
   margin: 0;
@@ -828,7 +761,35 @@ h4 {
   line-height: 1.65;
   font-size: 12px;
 }
-.empty-detail {
+.detail-empty {
   padding-top: 120px;
+}
+.service-view {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 20px;
+  align-content: flex-start;
+  min-height: calc(100vh - 364px);
+}
+.timeline-view {
+  padding: 12px;
+  min-height: calc(100vh - 364px);
+  overflow: auto;
+}
+.timeline-item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  margin-bottom: 5px;
+  text-align: left;
+  border: 1px solid #e7ebf1;
+  border-left: 3px solid #409eff;
+  background: #fff;
+  color: #344054;
+  cursor: pointer;
+}
+.timeline-error {
+  border-left-color: #f56c6c;
 }
 </style>
