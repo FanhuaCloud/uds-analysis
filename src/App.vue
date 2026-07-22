@@ -94,7 +94,6 @@
               :data="pagedRecords"
               row-key="id"
               border
-              size="small"
               height="calc(100vh - 364px)"
               :expand-row-keys="expanded"
               @row-click="selectRecord"
