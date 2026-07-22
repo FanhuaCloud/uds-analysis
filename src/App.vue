@@ -232,7 +232,7 @@
                 ></el-descriptions
               ><el-divider />
               <h4>服务说明</h4>
-              <p class="service-text">{{ selected.error || selected.note }}</p></template
+              <p class="service-text">{{ selected.description }}</p></template
             >
             <template v-else-if="detailTab === 'frames'"
               ><h4>原始帧序列（{{ selected.frames.length }} 帧）</h4>
@@ -242,6 +242,7 @@
               ><h4>UDS 解析结果</h4>
               <el-descriptions :column="1" size="small"
                 ><el-descriptions-item label="服务名称">{{ selected.service }}</el-descriptions-item
+                ><el-descriptions-item label="服务说明">{{ selected.description }}</el-descriptions-item
                 ><el-descriptions-item
                   v-for="field in selected.fields"
                   :key="field.label"

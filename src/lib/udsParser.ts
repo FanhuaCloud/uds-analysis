@@ -34,6 +34,7 @@ export interface UdsRecord {
   length: number
   status: ParseStatus
   note: string
+  description: string
   payload: number[]
   payloadHex: string
   fields: UdsField[]
@@ -64,6 +65,25 @@ const serviceNames: Record<number, string> = {
   0x37: 'Request Transfer Exit',
   0x3e: 'Tester Present',
   0x85: 'Control DTC Setting',
+}
+
+const serviceDescriptions: Record<number, string> = {
+  0x10: '用于切换 ECU 的诊断会话。不同会话决定后续可用的诊断服务、时序参数和安全权限。',
+  0x11: '用于请求 ECU 执行指定类型的复位，例如硬复位、软复位或快速断电复位。',
+  0x14: '用于清除 ECU 中保存的诊断故障码（DTC）及相关冻结帧或扩展数据。',
+  0x19: '用于读取 ECU 保存的诊断故障码、状态掩码、快照记录和扩展诊断数据。',
+  0x22: '用于按数据标识符（DID）读取 ECU 参数，例如 VIN、软件版本或实时状态。',
+  0x27: '用于执行安全访问认证。客户端先请求种子，再根据种子计算并发送密钥以解锁受限服务。',
+  0x28: '用于控制 ECU 的网络通信行为，可启用或禁用正常通信、网络管理和应用报文。',
+  0x2e: '用于按数据标识符（DID）写入 ECU 参数。该服务通常需要进入特定会话并完成安全访问。',
+  0x2f: '用于临时控制由 DID 标识的输入或输出信号，例如执行器驱动和 IO 状态覆盖。',
+  0x31: '用于启动、停止或请求 ECU 内置例程的执行结果，常用于校验、擦除和编程流程。',
+  0x34: '用于请求下载数据到 ECU。响应会给出传输数据阶段的长度与块大小限制。',
+  0x35: '用于请求从 ECU 上传数据。响应会给出传输数据阶段的长度与块大小限制。',
+  0x36: '用于在下载或上传会话中传输一个数据块，块序号用于保证传输顺序。',
+  0x37: '用于结束下载或上传传输，并允许 ECU 执行传输后处理，例如校验或激活。',
+  0x3e: '用于保持当前诊断会话处于活动状态，避免 ECU 因 S3 超时返回默认会话。',
+  0x85: '用于启用或禁止 ECU 的 DTC 设置，常用于测试和编程过程中避免产生无关故障码。',
 }
 
 const nrcNames: Record<number, string> = {
@@ -132,6 +152,7 @@ const fieldsFor = (
   sub: string
   status: ParseStatus
   note: string
+  description: string
   fields: UdsField[]
 } => {
   const sid = payload[0] ?? 0
@@ -145,6 +166,7 @@ const fieldsFor = (
       sub: hex(requestSid),
       status: '否定响应',
       note: `NRC: ${hex(nrc)}（${nrcName}）`,
+      description: `${serviceNames[requestSid] ?? `SID ${hex(requestSid)}`} 请求被 ECU 否定响应。NRC ${hex(nrc)} 表示：${nrcName}。`,
       fields: [
         { label: '请求 SID', value: hex(requestSid) },
         { label: 'NRC', value: `${hex(nrc)} - ${nrcName}` },
@@ -172,7 +194,8 @@ const fieldsFor = (
       : direction === '响应'
         ? '肯定响应'
         : '服务请求'
-  return { service, sid: hex(sid), sub, status: '成功', note, fields }
+  const description = serviceDescriptions[requestSid] ?? '该 SID 不在当前服务目录中，工具保留原始有效载荷供进一步分析。'
+  return { service, sid: hex(sid), sub, status: '成功', note, description, fields }
 }
 
 const buildRecord = (
@@ -197,6 +220,7 @@ const buildRecord = (
       length: payload.length,
       status: '解析异常',
       note: error,
+      description: `该记录未能完成 ISO-TP 重组：${error}。原始 CAN 帧仍保留在“原始帧序列”中。`,
       payload,
       payloadHex: bytesHex(payload),
       fields: [],
