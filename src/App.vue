@@ -65,7 +65,9 @@
             :show-tooltip="false"
           />
         </div>
-        <div class="toolbar-end"><el-checkbox v-model="onlyExceptions">仅显示异常</el-checkbox></div>
+        <div class="toolbar-end">
+          <el-checkbox v-model="onlyExceptions">仅显示异常</el-checkbox>
+        </div>
       </section>
       <section class="stat-grid">
         <div v-for="item in stats" :key="item.label" class="stat-card">
@@ -166,13 +168,9 @@
             v-else-if="activeTab === 'service'"
             :records="filteredRecords"
             @select="selectRecord"
-          /><timeline-view v-else :records="filteredRecords" @select="selectRecord" />
+          /><timeline-view v-else :records="pagedRecords" @select="selectRecord" />
           <footer
-            v-if="
-              activeTab !== 'service' &&
-              activeTab !== 'timeline' &&
-              (records.length || frames.length)
-            "
+            v-if="activeTab !== 'service' && (records.length || frames.length)"
             class="table-footer"
           >
             <span
@@ -237,7 +235,9 @@
               ><h4>UDS 解析结果</h4>
               <el-descriptions :column="1" size="small"
                 ><el-descriptions-item label="服务名称">{{ selected.service }}</el-descriptions-item
-                ><el-descriptions-item label="服务说明">{{ selected.description }}</el-descriptions-item
+                ><el-descriptions-item label="服务说明">{{
+                  selected.description
+                }}</el-descriptions-item
                 ><el-descriptions-item
                   v-for="field in selected.fields"
                   :key="field.label"
@@ -374,16 +374,11 @@ const stats = computed(() => [
   },
 ])
 watch(
-  [
-    keyword,
-    onlyExceptions,
-    () => filters.ecu,
-    () => filters.service,
-    () => filters.timeRange,
-  ],
+  [keyword, onlyExceptions, () => filters.ecu, () => filters.service, () => filters.timeRange],
   () => (page.value = 1),
   { deep: true },
 )
+watch(activeTab, () => (page.value = 1))
 const statusType = (status: ParseStatus) =>
   status === '成功' ? 'success' : status === '否定响应' ? 'danger' : 'warning'
 const selectRecord = (record: UdsRecord) => {
@@ -457,7 +452,7 @@ const TimelineView = defineComponent({
       h(
         'div',
         { class: 'timeline-view' },
-        props.records.slice(0, 100).map((record) =>
+        props.records.map((record) =>
           h(
             'button',
             {

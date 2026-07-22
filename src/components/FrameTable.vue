@@ -4,7 +4,9 @@
     <el-table-column prop="time" label="时间戳" width="125" />
     <el-table-column label="方向" width="65">
       <template #default="{ row }">
-        <el-tag :type="row.direction === '请求' ? 'primary' : 'success'" size="small">{{ row.direction }}</el-tag>
+        <el-tag :type="row.direction === '请求' ? 'primary' : 'success'" size="small">{{
+          row.direction
+        }}</el-tag>
       </template>
     </el-table-column>
     <el-table-column prop="can" label="CAN ID" width="78" />
@@ -26,5 +28,8 @@ withDefaults(defineProps<{ frames: CanFrame[]; maxHeight?: number | string }>(),
 </script>
 
 <style scoped>
-.frame-table :deep(.cell) { white-space: nowrap; padding: 0 5px; }
+.frame-table :deep(.cell) {
+  white-space: nowrap;
+  padding: 0 5px;
+}
 </style>
