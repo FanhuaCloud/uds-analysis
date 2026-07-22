@@ -1,5 +1,5 @@
 <template>
-  <el-table :data="frames" border :max-height="maxHeight" class="frame-table">
+  <el-table :data="frames" border :max-height="maxHeight" size="small" class="frame-table">
     <el-table-column prop="index" label="#" width="52" />
     <el-table-column prop="time" label="时间戳" width="125" />
     <el-table-column label="方向" width="65">

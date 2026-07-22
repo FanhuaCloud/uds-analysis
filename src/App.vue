@@ -112,7 +112,7 @@
                 width="125"
               /><el-table-column label="方向" width="62"
                 ><template #default="{ row }"
-                  ><el-tag :type="row.direction === '请求' ? 'primary' : 'success'" size="small">{{
+                  ><el-tag :type="row.direction === '请求' ? 'primary' : 'success'">{{
                     row.direction
                   }}</el-tag></template
                 ></el-table-column
@@ -133,13 +133,11 @@
                 label="状态"
                 width="78"
                 ><template #default="{ row }"
-                  ><el-tag :type="statusType(row.status)" size="small">{{
-                    row.status
-                  }}</el-tag></template
+                  ><el-tag :type="statusType(row.status)">{{ row.status }}</el-tag></template
                 ></el-table-column
               ><el-table-column label="合并记录数" width="90"
                 ><template #default="{ row }"
-                  ><el-tag v-if="row.frames.length > 1" size="small" effect="plain"
+                  ><el-tag v-if="row.frames.length > 1" effect="plain"
                     >{{ row.frames.length }} 帧</el-tag
                   ><span v-else>1</span></template
                 ></el-table-column
@@ -191,9 +189,7 @@
             ><div class="detail-head">
               <b>#{{ selected.index }}</b
               ><span>{{ selected.service }} ({{ selected.sid }})</span
-              ><el-tag :type="statusType(selected.status)" size="small">{{
-                selected.status
-              }}</el-tag>
+              ><el-tag :type="statusType(selected.status)">{{ selected.status }}</el-tag>
             </div>
             <el-tabs v-model="detailTab" stretch class="detail-tabs"
               ><el-tab-pane label="基本信息" name="basic" /><el-tab-pane
@@ -204,7 +200,7 @@
             /></el-tabs>
             <template v-if="detailTab === 'basic'"
               ><h4>基本信息</h4>
-              <el-descriptions :column="2" size="small"
+              <el-descriptions :column="2"
                 ><el-descriptions-item label="时间戳">{{ selected.time }}</el-descriptions-item
                 ><el-descriptions-item label="长度"
                   >{{ selected.length }} bytes</el-descriptions-item
@@ -213,7 +209,7 @@
                 ><el-descriptions-item label="CAN ID">{{ selected.can }}</el-descriptions-item
                 ><el-descriptions-item label="ECU">{{ selected.ecu }}</el-descriptions-item
                 ><el-descriptions-item label="状态"
-                  ><el-tag :type="statusType(selected.status)" size="small">{{
+                  ><el-tag :type="statusType(selected.status)">{{
                     selected.status
                   }}</el-tag></el-descriptions-item
                 ></el-descriptions
@@ -227,7 +223,7 @@
             /></template>
             <template v-else-if="detailTab === 'uds'"
               ><h4>UDS 解析结果</h4>
-              <el-descriptions :column="1" size="small"
+              <el-descriptions :column="1"
                 ><el-descriptions-item label="服务名称">{{ selected.service }}</el-descriptions-item
                 ><el-descriptions-item label="服务说明">{{
                   selected.description
@@ -440,11 +436,11 @@ body {
 }
 .brand {
   gap: 11px;
-  font-size: 18px;
+  /* font-size: 18px; */
   color: #1c2635;
 }
 .menu-icon {
-  font-size: 18px;
+  /* font-size: 18px; */
   color: #667085;
 }
 .shield {
@@ -577,17 +573,7 @@ body {
 .record-tabs {
   padding: 0 14px;
 }
-.record-tabs .el-tabs__header {
-  margin: 0;
-}
-.record-tabs .el-tabs__item {
-  height: 39px;
-  font-size: 13px;
-}
-.records-panel .el-table {
-  --el-table-header-bg-color: #fafbfc;
-  --el-table-row-hover-bg-color: #f4f8ff;
-}
+
 .records-panel .el-table .cell {
   white-space: nowrap;
   padding: 0 5px;
@@ -638,14 +624,14 @@ body {
 }
 .detail-tabs .el-tabs__item {
   padding: 0 8px;
-  font-size: 12px;
+  /* font-size: 12px; */
 }
 .detail-tabs .el-tabs__header {
   margin-bottom: 12px;
 }
 h4 {
   margin: 13px 0 9px;
-  font-size: 12px;
+  /* font-size: 12px; */
   color: #344054;
 }
 .detail-panel .el-descriptions__label {
@@ -665,14 +651,14 @@ h4 {
   background: #f5f7fa;
   color: #667085;
   font-family: Consolas, monospace;
-  font-size: 11px;
+  /* font-size: 11px; */
   word-break: break-all;
 }
 .service-text {
   margin: 0;
   color: #667085;
   line-height: 1.65;
-  font-size: 12px;
+  /* font-size: 12px; */
 }
 .detail-empty {
   padding-top: 120px;
