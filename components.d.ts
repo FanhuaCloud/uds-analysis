@@ -32,5 +32,7 @@ declare module 'vue' {
     ElTabs: typeof import('element-plus/es')['ElTabs']
     ElTag: typeof import('element-plus/es')['ElTag']
     FrameTable: typeof import('./src/components/FrameTable.vue')['default']
+    ServiceView: typeof import('./src/components/ServiceView.vue')['default']
+    TimelineView: typeof import('./src/components/TimelineView.vue')['default']
   }
 }

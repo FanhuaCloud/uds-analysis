@@ -257,7 +257,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   Close,
@@ -274,6 +274,8 @@ import {
 } from '@element-plus/icons-vue'
 import { parseTrc, type CanFrame, type ParseStatus, type UdsRecord } from './lib/udsParser'
 import FrameTable from './components/FrameTable.vue'
+import ServiceView from './components/ServiceView.vue'
+import TimelineView from './components/TimelineView.vue'
 
 const fileInput = ref<HTMLInputElement>()
 const frames = ref<CanFrame[]>([])
@@ -407,57 +409,6 @@ const importFile = async (event: Event) => {
     ;(event.target as HTMLInputElement).value = ''
   }
 }
-const ServiceView = defineComponent({
-  props: { records: { type: Array as () => UdsRecord[], required: true } },
-  emits: ['select'],
-  setup(props, { emit }) {
-    return () =>
-      h(
-        'div',
-        { class: 'service-view' },
-        Object.entries(
-          props.records.reduce<Record<string, number>>((total, record) => {
-            total[record.service] = (total[record.service] ?? 0) + 1
-            return total
-          }, {}),
-        )
-          .sort((a, b) => b[1] - a[1])
-          .map(([service, count]) =>
-            h(
-              'el-button',
-              {
-                onClick: () => {
-                  const record = props.records.find((item) => item.service === service)
-                  if (record) emit('select', record)
-                },
-              },
-              () => `${service}  ${count} 条`,
-            ),
-          ),
-      )
-  },
-})
-const TimelineView = defineComponent({
-  props: { records: { type: Array as () => UdsRecord[], required: true } },
-  emits: ['select'],
-  setup(props, { emit }) {
-    return () =>
-      h(
-        'div',
-        { class: 'timeline-view' },
-        props.records.map((record) =>
-          h(
-            'button',
-            {
-              class: ['timeline-item', record.status !== '成功' ? 'timeline-error' : ''],
-              onClick: () => emit('select', record),
-            },
-            `${record.time}  ${record.direction}  ${record.sid}  ${record.service}`,
-          ),
-        ),
-      )
-  },
-})
 </script>
 
 <style>
@@ -729,33 +680,5 @@ h4 {
 }
 .detail-empty {
   padding-top: 120px;
-}
-.service-view {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding: 20px;
-  align-content: flex-start;
-  min-height: calc(100vh - 364px);
-}
-.timeline-view {
-  padding: 12px;
-  min-height: calc(100vh - 364px);
-  overflow: auto;
-}
-.timeline-item {
-  display: block;
-  width: 100%;
-  padding: 8px 12px;
-  margin-bottom: 5px;
-  text-align: left;
-  border: 1px solid #e7ebf1;
-  border-left: 3px solid #409eff;
-  background: #fff;
-  color: #344054;
-  cursor: pointer;
-}
-.timeline-error {
-  border-left-color: #f56c6c;
 }
 </style>
