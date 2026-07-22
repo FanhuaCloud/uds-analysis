@@ -10,7 +10,7 @@
       </div>
       <el-space :size="20"><el-button text :icon="Setting">设置</el-button></el-space>
     </el-header>
-    <main class="workspace">
+    <el-main class="workspace">
       <section class="toolbar">
         <el-button type="primary" :icon="Upload" @click="fileInput?.click()"
           >导入 TRC 文件</el-button
@@ -251,7 +251,7 @@
           ><el-empty v-else description="选择一条解析记录查看详情" class="detail-empty" />
         </aside>
       </section>
-    </main>
+    </el-main>
   </el-container>
 </template>
 
@@ -418,9 +418,6 @@ body {
   margin: 0;
   min-width: 1240px;
   background: #f5f7fb;
-  color: #1d2939;
-  font-family: Inter, 'Microsoft YaHei', sans-serif;
-  font-size: 13px;
 }
 .app-shell {
   min-height: 100vh;
