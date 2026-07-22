@@ -163,7 +163,11 @@
               description="请选择 PCAN-View TRC 2.0 文件开始分析"
               class="content-empty"
           /></template>
-          <raw-table v-else-if="activeTab === 'raw'" :frames="pagedFrames" /><service-view
+          <frame-table
+            v-else-if="activeTab === 'raw'"
+            :frames="pagedFrames"
+            max-height="calc(100vh - 364px)"
+          /><service-view
             v-else-if="activeTab === 'service'"
             :records="filteredRecords"
             @select="selectRecord"
@@ -279,6 +283,7 @@ import {
   Monitor,
 } from '@element-plus/icons-vue'
 import { parseTrc, type CanFrame, type ParseStatus, type UdsRecord } from './lib/udsParser'
+import FrameTable from './components/FrameTable.vue'
 
 const fileInput = ref<HTMLInputElement>()
 const frames = ref<CanFrame[]>([])
@@ -421,26 +426,6 @@ const importFile = async (event: Event) => {
     ;(event.target as HTMLInputElement).value = ''
   }
 }
-const FrameTable = defineComponent({
-  props: { frames: { type: Array as () => CanFrame[], required: true } },
-  setup(props) {
-    return () =>
-      h('el-table', { data: props.frames, size: 'small', border: true, maxHeight: 180 }, () => [
-        h('el-table-column', { prop: 'index', label: '#', width: 52 }),
-        h('el-table-column', { prop: 'time', label: '时间戳', width: 125 }),
-        h('el-table-column', { prop: 'direction', label: '方向', width: 60 }),
-        h('el-table-column', { prop: 'can', label: 'CAN ID', width: 75 }),
-        h('el-table-column', { prop: 'type', label: '类型', width: 130 }),
-        h('el-table-column', { prop: 'dataHex', label: '数据 (Hex)' }),
-      ])
-  },
-})
-const RawTable = defineComponent({
-  props: { frames: { type: Array as () => CanFrame[], required: true } },
-  setup(props) {
-    return () => h(FrameTable, { frames: props.frames })
-  },
-})
 const ServiceView = defineComponent({
   props: { records: { type: Array as () => UdsRecord[], required: true } },
   emits: ['select'],
